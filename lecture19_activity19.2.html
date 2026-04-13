@@ -1,0 +1,162 @@
+
+<div style="padding: 1rem 0;">
+  <h2 class="sr-only">Plot of solution to y''+2y'+2y=delta(t-pi) showing free response, forced response, and total solution</h2>
+
+  <div style="display: flex; gap: 12px; margin-bottom: 1.2rem; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 100px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 0.9rem; text-align: center;">
+      <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px;">Kick at</div>
+      <div style="font-size: 22px; font-weight: 500;">t = π</div>
+    </div>
+    <div style="flex: 1; min-width: 100px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 0.9rem; text-align: center;">
+      <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px;">y(0)</div>
+      <div style="font-size: 22px; font-weight: 500;">1</div>
+    </div>
+    <div style="flex: 1; min-width: 100px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 0.9rem; text-align: center;">
+      <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px;">y'(0)</div>
+      <div style="font-size: 22px; font-weight: 500;">0</div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap;">
+    <label style="font-size: 13px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+      <input type="checkbox" id="chk-free" checked> <span style="color:var(--color-text-secondary);">Free response y₁(t)</span>
+    </label>
+    <label style="font-size: 13px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+      <input type="checkbox" id="chk-forced" checked> <span style="color:var(--color-text-secondary);">Forced response y₂(t)</span>
+    </label>
+    <label style="font-size: 13px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+      <input type="checkbox" id="chk-total" checked> <span style="color:var(--color-text-secondary);">Total y(t)</span>
+    </label>
+  </div>
+
+  <div style="position: relative; width: 100%; height: 320px;">
+    <canvas id="actChart" role="img" aria-label="Solution curves for Activity 19.2. Free response decays from y=1. Kick at t=pi adds a second damped oscillation. Total is their sum.">Activity 19.2 solution: free response plus kicked forced response.</canvas>
+  </div>
+
+  <div style="display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--color-text-secondary); flex-wrap: wrap;">
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:18px;height:3px;background:#185FA5;display:inline-block;border-radius:2px;"></span> y₁: free response</span>
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:18px;height:3px;background:#D85A30;display:inline-block;border-radius:2px;"></span> y₂: forced response</span>
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:18px;height:3px;background:#3B6D11;display:inline-block;border-radius:2px;"></span> y = y₁ + y₂</span>
+    <span style="display:flex;align-items:center;gap:5px;"><span style="width:11px;height:11px;border-radius:50%;background:#E03000;display:inline-block;"></span> kick at t=π</span>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const TMIN = 0, TMAX = 20, NPTS = 1000;
+const T0 = Math.PI;
+
+const labels = [];
+for (let i = 0; i <= NPTS; i++) labels.push((TMIN + (i/NPTS)*(TMAX-TMIN)).toFixed(4));
+
+const y1Data = labels.map(l => {
+  const t = parseFloat(l);
+  return Math.exp(-t) * (Math.cos(t) + Math.sin(t));
+});
+
+const y2Data = labels.map(l => {
+  const t = parseFloat(l);
+  if (t < T0) return 0;
+  return -Math.exp(-(t - T0)) * Math.sin(t);
+});
+
+const yTotal = labels.map((l, i) => y1Data[i] + y2Data[i]);
+
+const kickIdx = labels.reduce((best, l, i) =>
+  Math.abs(parseFloat(l) - T0) < Math.abs(parseFloat(labels[best]) - T0) ? i : best, 0);
+
+function makeKickDot() {
+  return labels.map((l, i) => i === kickIdx ? yTotal[kickIdx] : null);
+}
+function makeKickR() {
+  return labels.map((l, i) => i === kickIdx ? 9 : 0);
+}
+
+const ctx = document.getElementById('actChart').getContext('2d');
+
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'y1',
+        data: y1Data,
+        borderColor: '#185FA5',
+        backgroundColor: 'transparent',
+        pointRadius: 0,
+        borderWidth: 2,
+        borderDash: [6, 3],
+        tension: 0.2,
+        spanGaps: true
+      },
+      {
+        label: 'y2',
+        data: y2Data,
+        borderColor: '#D85A30',
+        backgroundColor: 'transparent',
+        pointRadius: 0,
+        borderWidth: 2,
+        borderDash: [4, 4],
+        tension: 0.2,
+        spanGaps: false
+      },
+      {
+        label: 'total',
+        data: yTotal,
+        borderColor: '#3B6D11',
+        backgroundColor: 'rgba(59,109,17,0.07)',
+        fill: true,
+        pointRadius: 0,
+        borderWidth: 2.5,
+        tension: 0.2,
+        spanGaps: true
+      },
+      {
+        label: 'kick',
+        data: makeKickDot(),
+        borderColor: '#E03000',
+        backgroundColor: '#E03000',
+        pointRadius: makeKickR(),
+        borderWidth: 0,
+        spanGaps: false
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: { legend:{display:false}, tooltip:{enabled:false} },
+    scales: {
+      x: {
+        type:'category',
+        ticks: {
+          maxTicksLimit: 8,
+          callback: function(v){
+            const val = parseFloat(this.getLabelForValue(v));
+            if (Math.abs(val - Math.PI) < 0.15) return 'π';
+            return val.toFixed(0);
+          },
+          color:'#888', font:{size:11}
+        },
+        grid:{color:'rgba(128,128,128,0.12)'},
+        title:{display:true, text:'time t (s)', color:'#888', font:{size:12}}
+      },
+      y: {
+        min: -1.2, max: 1.4,
+        ticks:{color:'#888', font:{size:11}, stepSize:0.4},
+        grid:{color:'rgba(128,128,128,0.12)'},
+        title:{display:true, text:'y(t)', color:'#888', font:{size:12}}
+      }
+    }
+  }
+});
+
+['chk-free','chk-forced','chk-total'].forEach((id, i) => {
+  document.getElementById(id).addEventListener('change', function() {
+    chart.data.datasets[i].hidden = !this.checked;
+    chart.update();
+  });
+});
+</script>

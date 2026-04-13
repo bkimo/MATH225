@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beats & Resonance — Forced Undamped Oscillation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Georgia', serif;
+    background: #0f0f13;
+    color: #e8e6df;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header {
+    max-width: 800px;
+    margin: 0 auto 2rem;
+    border-bottom: 0.5px solid rgba(255,255,255,0.12);
+    padding-bottom: 1.2rem;
+  }
+  header h1 { font-size: 1.25rem; font-weight: 400; letter-spacing: 0.02em; color: #e8e6df; }
+  header p  { font-size: 0.8rem; color: #888; margin-top: 0.3rem; font-family: 'Courier New', monospace; }
+
+  .card {
+    max-width: 800px; margin: 0 auto 1.5rem;
+    background: #17171d; border: 0.5px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 1.5rem;
+  }
+
+  .equation {
+    font-family: 'Georgia', serif; font-size: 1rem; color: #7ab3e0;
+    text-align: center; padding: 0.8rem 1rem;
+    background: rgba(55,138,221,0.07); border-radius: 8px;
+    margin-bottom: 1.5rem; border: 0.5px solid rgba(55,138,221,0.2); font-style: italic;
+  }
+
+  .controls { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem; }
+  .ctrl-row { display: flex; align-items: center; gap: 1rem; }
+  .ctrl-row label { font-family: 'Courier New', monospace; font-size: 0.82rem; color: #888; min-width: 130px; }
+  input[type=range] {
+    flex: 1; -webkit-appearance: none; height: 3px;
+    background: rgba(255,255,255,0.15); border-radius: 2px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; background: #7ab3e0; cursor: pointer;
+  }
+  .val-display {
+    font-family: 'Courier New', monospace; font-size: 0.9rem;
+    font-weight: bold; min-width: 48px; text-align: right; color: #e8e6df;
+  }
+
+  .badge {
+    display: inline-block; font-family: 'Courier New', monospace;
+    font-size: 0.7rem; padding: 2px 10px; border-radius: 4px;
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .badge-beats { background: rgba(55,138,221,0.18); color: #7ab3e0; border: 0.5px solid rgba(55,138,221,0.3); }
+  .badge-near  { background: rgba(239,159,39,0.18);  color: #EF9F27; border: 0.5px solid rgba(239,159,39,0.3); }
+  .badge-res   { background: rgba(216,90,48,0.18);   color: #D85A30; border: 0.5px solid rgba(216,90,48,0.3); }
+
+  .audio-panel {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0.9rem 1rem;
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,255,255,0.09);
+    border-radius: 8px; margin-bottom: 1.2rem; flex-wrap: wrap;
+  }
+
+  #playBtn {
+    font-family: 'Courier New', monospace; font-size: 0.78rem;
+    padding: 6px 18px; border-radius: 6px;
+    border: 0.5px solid rgba(122,179,224,0.45);
+    background: rgba(122,179,224,0.1); color: #7ab3e0;
+    cursor: pointer; letter-spacing: 0.04em; transition: background 0.15s; white-space: nowrap;
+  }
+  #playBtn:hover { background: rgba(122,179,224,0.2); }
+  #playBtn.playing {
+    border-color: rgba(216,90,48,0.5); background: rgba(216,90,48,0.1); color: #D85A30;
+  }
+
+  .audio-info { display: flex; gap: 18px; flex-wrap: wrap; flex: 1; }
+  .astat { display: flex; flex-direction: column; gap: 1px; }
+  .astat .alabel {
+    font-family: 'Courier New', monospace; font-size: 0.65rem;
+    color: #555; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .astat .aval { font-family: 'Courier New', monospace; font-size: 0.82rem; color: #ccc; font-weight: bold; }
+  .astat .aval.highlight { color: #7ab3e0; }
+  .astat .aval.warn      { color: #EF9F27; }
+  .astat .aval.danger    { color: #D85A30; }
+
+  .beat-bar-wrap { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
+  .beat-bar-label { font-family: 'Courier New', monospace; font-size: 0.65rem; color: #555; letter-spacing: 0.04em; text-transform: uppercase; }
+  .beat-bar-track { height: 5px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
+  .beat-bar-fill  { height: 100%; border-radius: 3px; background: #7ab3e0; transition: width 0.25s, background 0.25s; }
+
+  .vol-row { display: flex; align-items: center; gap: 8px; }
+  .vol-row label {
+    font-family: 'Courier New', monospace; font-size: 0.65rem; color: #555;
+    letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+  }
+  input#volSlider { width: 80px; height: 3px; }
+  input#volSlider::-webkit-slider-thumb { width: 12px; height: 12px; background: #555; }
+
+  #waveCanvas {
+    width: 100%; height: 48px; border-radius: 4px;
+    background: rgba(0,0,0,0.3); display: block; margin-top: 6px;
+  }
+
+  .preset-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.2rem; }
+  .preset-btn {
+    font-family: 'Courier New', monospace; font-size: 0.75rem;
+    padding: 5px 12px; border-radius: 6px;
+    border: 0.5px solid rgba(255,255,255,0.15);
+    background: transparent; color: #aaa; cursor: pointer; transition: all 0.15s;
+  }
+  .preset-btn:hover { background: rgba(255,255,255,0.07); color: #e8e6df; }
+  .preset-btn.danger { border-color: rgba(216,90,48,0.5); color: #D85A30; }
+  .preset-btn.danger:hover { background: rgba(216,90,48,0.1); }
+
+  .chart-wrap { position: relative; width: 100%; height: 240px; }
+
+  .legend {
+    display: flex; gap: 1.5rem; margin-top: 0.8rem;
+    font-family: 'Courier New', monospace; font-size: 0.72rem; color: #666;
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 24px; height: 2px; display: inline-block; border-radius: 1px; }
+
+  .explanation {
+    margin-top: 1.2rem; font-size: 0.85rem; line-height: 1.7; color: #999;
+    min-height: 52px; padding-top: 0.8rem;
+    border-top: 0.5px solid rgba(255,255,255,0.07);
+  }
+  .explanation em { color: #e8e6df; font-style: normal; }
+
+  footer {
+    max-width: 800px; margin: 1rem auto 0;
+    font-size: 0.72rem; color: #444;
+    font-family: 'Courier New', monospace; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Beats &amp; Resonance</h1>
+  <p>x″ + ω₀²x = F₀ cos ωt &nbsp;|&nbsp; Forced undamped harmonic oscillation</p>
+</header>
+
+<div class="card">
+  <div class="equation">
+    x(t) = [2F₀ / (ω₀² − ω²)] · sin[(ω₀ − ω)t/2] · sin[(ω₀ + ω)t/2]
+  </div>
+
+  <!-- FIX 1: max="12" so slider can reach ω=12; initial value=12 now valid -->
+  <div class="controls">
+    <div class="ctrl-row">
+      <label>forcing freq ω</label>
+      <input type="range" id="omegaSlider" min="11" max="12" step="0.05" value="12">
+      <span class="val-display" id="omegaVal">12.00</span>
+      <span class="badge badge-beats" id="badge">beats</span>
+    </div>
+  </div>
+
+  <!-- Audio panel -->
+  <div class="audio-panel">
+    <button id="playBtn" onclick="toggleAudio()">▶ play sound</button>
+
+    <div class="audio-info">
+      <div class="astat">
+        <span class="alabel">tone 1 (ω₀)</span>
+        <span class="aval highlight" id="f1disp">220.0 Hz</span>
+      </div>
+      <div class="astat">
+        <span class="alabel">tone 2 (ω)</span>
+        <span class="aval" id="f2disp">240.0 Hz</span>
+      </div>
+      <div class="astat">
+        <span class="alabel">beat freq</span>
+        <span class="aval" id="fbeatdisp">20.0 Hz</span>
+      </div>
+      <div class="astat">
+        <span class="alabel">beat period</span>
+        <span class="aval" id="fperioddisp">0.050 s</span>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px; min-width:160px; flex:1;">
+      <div class="beat-bar-wrap">
+        <span class="beat-bar-label">beat speed</span>
+        <div class="beat-bar-track">
+          <div class="beat-bar-fill" id="beatBar" style="width:100%;"></div>
+        </div>
+      </div>
+      <div class="vol-row">
+        <label>volume</label>
+        <input type="range" id="volSlider" min="0" max="1" step="0.01" value="0.35">
+      </div>
+    </div>
+  </div>
+
+  <!-- FIX 2: waveform canvas -->
+  <canvas id="waveCanvas"></canvas>
+
+  <div class="preset-row" style="margin-top:10px;">
+    <button class="preset-btn" onclick="setOmega(12)">ω = 12.00 (far)</button>
+    <button class="preset-btn" onclick="setOmega(11.5)">ω = 11.50</button>
+    <button class="preset-btn" onclick="setOmega(11.2)">ω = 11.20</button>
+    <button class="preset-btn" onclick="setOmega(11.05)">ω = 11.05</button>
+    <button class="preset-btn danger" onclick="setOmega(11)">ω = 11 = ω₀ (resonance)</button>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#7ab3e0;"></span>x(t) — displacement</span>
+    <span><span class="dot" style="background:none; border-top:1.5px dashed #D85A30; height:0; margin-top:1px;"></span>amplitude envelope</span>
+  </div>
+
+  <div class="explanation" id="explanation"></div>
+</div>
+
+<footer>
+  F₀ = 23 &nbsp;·&nbsp; ω₀ = 11 &nbsp;·&nbsp; x(0) = x′(0) = 0
+  &nbsp;|&nbsp; Lecture 13 · Section 5.1.3
+</footer>
+
+<script>
+/* ─── constants ─── */
+const F0 = 23, omega0 = 11, N = 800;
+
+/*
+ * FIX 3 — audible beat range
+ * We want beat frequencies in the range 0–10 Hz so every preset
+ * produces a clearly perceptible individual throb, not buzzy distortion.
+ *
+ * Beat freq = |f1 − f2|.  Map ω→Hz so that:
+ *   ω = 12  → beat = 10 Hz  (fast)
+ *   ω = 11  → beat =  0 Hz  (resonance / pure tone)
+ *
+ * So: f2 = f1 + (ω − ω0) × BEAT_SCALE
+ * where BEAT_SCALE = 10 Hz per unit of ω  (since ω goes 11→12, Δω=1 → 10 Hz)
+ */
+const BASE_FREQ  = 220;   // A3 — pleasant, clear
+const BEAT_SCALE = 10;    // Hz per (ω − ω0) unit
+
+function getFreqs(omega) {
+  const f1    = BASE_FREQ;
+  const f2    = +(f1 + (omega - omega0) * BEAT_SCALE).toFixed(2);
+  const fbeat = +Math.abs(f1 - f2).toFixed(2);
+  const period = fbeat > 0.001 ? +(1 / fbeat).toFixed(3) : Infinity;
+  return { f1, f2, fbeat, period };
+}
+
+/* ─── math helpers ─── */
+function computeX(t, omega) {
+  if (Math.abs(omega - omega0) < 0.005)
+    return (F0 / (2 * omega0)) * t * Math.sin(omega0 * t);
+  return (F0 / (omega0**2 - omega**2)) * (Math.cos(omega * t) - Math.cos(omega0 * t));
+}
+function getEnv(t, omega) {
+  if (Math.abs(omega - omega0) < 0.005) return null;
+  return Math.abs((2 * F0 / (omega0**2 - omega**2)) * Math.sin((omega0 - omega) * t / 2));
+}
+function buildData(omega) {
+  const isRes = Math.abs(omega - omega0) < 0.005;
+  const tMax  = isRes ? 22 : 90;
+  const ts = [], xs = [], ep = [], en = [];
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * tMax;
+    ts.push(+t.toFixed(2));
+    xs.push(+computeX(t, omega).toFixed(4));
+    const e = getEnv(t, omega);
+    ep.push(e !== null ? +e.toFixed(4) : null);
+    en.push(e !== null ? +(-e).toFixed(4) : null);
+  }
+  return { ts, xs, ep, en };
+}
+
+/* ─── Web Audio ─── */
+let audioCtx = null, osc1 = null, osc2 = null, gainNode = null, analyser = null;
+let isPlaying = false, animFrame = null;
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = parseFloat(document.getElementById('volSlider').value);
+
+  // FIX 2 — analyser sits between gainNode and destination
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 1024;
+
+  osc1 = audioCtx.createOscillator();
+  osc2 = audioCtx.createOscillator();
+  osc1.type = 'sine';
+  osc2.type = 'sine';
+
+  const g1 = audioCtx.createGain(); g1.gain.value = 0.5;
+  const g2 = audioCtx.createGain(); g2.gain.value = 0.5;
+
+  osc1.connect(g1); g1.connect(gainNode);
+  osc2.connect(g2); g2.connect(gainNode);
+
+  // Correct signal chain: gainNode → analyser → destination
+  gainNode.connect(analyser);
+  analyser.connect(audioCtx.destination);
+}
+
+function startAudio(omega) {
+  if (!audioCtx) initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  const { f1, f2 } = getFreqs(omega);
+  osc1.frequency.setValueAtTime(f1, audioCtx.currentTime);
+  osc2.frequency.setValueAtTime(f2, audioCtx.currentTime);
+  osc1.start();
+  osc2.start();
+  isPlaying = true;
+
+  document.getElementById('playBtn').textContent = '■ stop sound';
+  document.getElementById('playBtn').classList.add('playing');
+  startWaveform();
+}
+
+function stopAudio() {
+  if (osc1) { try { osc1.stop(); } catch(e){} }
+  if (osc2) { try { osc2.stop(); } catch(e){} }
+  osc1 = null; osc2 = null; gainNode = null; analyser = null;
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  isPlaying = false;
+
+  document.getElementById('playBtn').textContent = '▶ play sound';
+  document.getElementById('playBtn').classList.remove('playing');
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  clearWaveform();
+}
+
+function toggleAudio() {
+  if (isPlaying) {
+    stopAudio();
+  } else {
+    const omega = parseFloat(document.getElementById('omegaSlider').value);
+    startAudio(omega);
+  }
+}
+
+function updateAudioFreq(omega) {
+  if (!isPlaying || !osc1 || !osc2) return;
+  const { f1, f2 } = getFreqs(omega);
+  const t = audioCtx.currentTime;
+  osc1.frequency.setTargetAtTime(f1, t, 0.05);
+  osc2.frequency.setTargetAtTime(f2, t, 0.05);
+}
+
+document.getElementById('volSlider').addEventListener('input', function() {
+  if (gainNode) gainNode.gain.setTargetAtTime(parseFloat(this.value), audioCtx.currentTime, 0.02);
+});
+
+/* ─── Waveform ─── */
+const waveCanvas = document.getElementById('waveCanvas');
+const waveCtx2d  = waveCanvas.getContext('2d');
+
+function startWaveform() {
+  if (!analyser) return;
+  const buf = new Float32Array(analyser.fftSize);
+
+  function draw() {
+    if (!isPlaying) return;
+    animFrame = requestAnimationFrame(draw);
+    analyser.getFloatTimeDomainData(buf);
+
+    const W = waveCanvas.offsetWidth, H = waveCanvas.offsetHeight;
+    waveCanvas.width = W; waveCanvas.height = H;
+
+    waveCtx2d.clearRect(0, 0, W, H);
+    waveCtx2d.strokeStyle = '#7ab3e0';
+    waveCtx2d.lineWidth = 1.2;
+    waveCtx2d.beginPath();
+
+    const slice = Math.floor(buf.length / W);
+    for (let i = 0; i < W; i++) {
+      const sample = buf[i * slice] || 0;
+      const y = (0.5 - sample * 0.42) * H;
+      i === 0 ? waveCtx2d.moveTo(i, y) : waveCtx2d.lineTo(i, y);
+    }
+    waveCtx2d.stroke();
+  }
+  draw();
+}
+
+function clearWaveform() {
+  const W = waveCanvas.offsetWidth, H = waveCanvas.offsetHeight;
+  waveCanvas.width = W; waveCanvas.height = H;
+  waveCtx2d.clearRect(0, 0, W, H);
+}
+
+/* ─── Audio info display ─── */
+function updateAudioInfo(omega) {
+  const { f1, f2, fbeat, period } = getFreqs(omega);
+  const isRes = Math.abs(omega - omega0) < 0.005;
+
+  document.getElementById('f1disp').textContent = f1.toFixed(1) + ' Hz';
+  document.getElementById('f2disp').textContent = f2.toFixed(1) + ' Hz';
+
+  const fbeatEl   = document.getElementById('fbeatdisp');
+  const fperiodEl = document.getElementById('fperioddisp');
+
+  if (isRes) {
+    fbeatEl.textContent = '0.0 Hz';   fbeatEl.className = 'aval danger';
+    fperiodEl.textContent = '∞';      fperiodEl.className = 'aval danger';
+  } else {
+    fbeatEl.textContent  = fbeat.toFixed(2) + ' Hz';
+    fbeatEl.className    = fbeat < 3 ? 'aval warn' : 'aval';
+    fperiodEl.textContent = period.toFixed(3) + ' s';
+    fperiodEl.className   = fbeat < 3 ? 'aval warn' : 'aval';
+  }
+
+  // Beat speed bar: maps 0–10 Hz → full to empty
+  const pct = isRes ? 0 : Math.max(0, 100 - (fbeat / 10) * 100);
+  const bar  = document.getElementById('beatBar');
+  bar.style.width      = pct.toFixed(1) + '%';
+  bar.style.background = isRes ? '#D85A30' : (fbeat < 3 ? '#EF9F27' : '#7ab3e0');
+}
+
+/* ─── Chart ─── */
+const initData = buildData(12);
+const chart = new Chart(document.getElementById('chart').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: initData.ts,
+    datasets: [
+      { data: initData.xs, borderColor: '#7ab3e0', borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
+      { data: initData.ep, borderColor: '#D85A30', borderWidth: 1, borderDash: [5,4], pointRadius: 0, tension: 0.2 },
+      { data: initData.en, borderColor: '#D85A30', borderWidth: 1, borderDash: [5,4], pointRadius: 0, tension: 0.2 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 250 },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: {
+      x: {
+        ticks: { maxTicksLimit: 8, color: '#555', callback: (v, i) => +initData.ts[i].toFixed(1) },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        title: { display: true, text: 't', color: '#555' }
+      },
+      y: {
+        ticks: { color: '#555', maxTicksLimit: 6 },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        title: { display: true, text: 'x(t)', color: '#555' }
+      }
+    }
+  }
+});
+
+/* ─── Explanation ─── */
+function updateExplanation(omega) {
+  const el = document.getElementById('explanation');
+  const { f1, f2, fbeat, period } = getFreqs(omega);
+  const diff = Math.abs(omega - omega0);
+
+  if (diff < 0.005) {
+    el.innerHTML = '<em>Resonance (ω = ω₀).</em> Both tones are identical at ' + f1 + ' Hz — you hear a single pure tone with no throbbing. Mathematically x_p = (F₀/2ω₀)·t·sin(ω₀t): the factor t causes amplitude to grow without bound.';
+  } else if (diff < 0.25) {
+    el.innerHTML = '<em>Near-resonance.</em> The two tones differ by only ' + fbeat.toFixed(2) + ' Hz — you hear a very slow throb every ' + period.toFixed(2) + ' s. Each throb corresponds to one beat on the graph.';
+  } else {
+    el.innerHTML = '<em>Beats.</em> Two tones at ' + f1 + ' Hz and ' + f2.toFixed(1) + ' Hz interfere. You hear ' + fbeat.toFixed(1) + ' beats per second — one audible throb for each visual amplitude peak. Slide ω toward 11 to slow them down.';
+  }
+}
+
+function updateBadge(omega) {
+  const badge = document.getElementById('badge');
+  const diff  = Math.abs(omega - omega0);
+  if (diff < 0.005)  { badge.textContent = 'resonance';     badge.className = 'badge badge-res'; }
+  else if (diff < 0.25) { badge.textContent = 'near-resonance'; badge.className = 'badge badge-near'; }
+  else               { badge.textContent = 'beats';         badge.className = 'badge badge-beats'; }
+}
+
+/* ─── Master update ─── */
+function setOmega(val) {
+  document.getElementById('omegaSlider').value = val;
+  document.getElementById('omegaVal').textContent = val.toFixed(2);
+
+  const d = buildData(val);
+  chart.data.labels         = d.ts;
+  chart.data.datasets[0].data = d.xs;
+  chart.data.datasets[1].data = d.ep;
+  chart.data.datasets[2].data = d.en;
+  chart.update();
+
+  updateAudioFreq(val);
+  updateAudioInfo(val);
+  updateExplanation(val);
+  updateBadge(val);
+}
+
+document.getElementById('omegaSlider').addEventListener('input', function() {
+  setOmega(parseFloat(this.value));
+});
+
+// Initialise display at ω=12
+updateAudioInfo(12);
+updateExplanation(12);
+</script>
+</body>
+</html>
